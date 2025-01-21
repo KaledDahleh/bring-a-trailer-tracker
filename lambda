@@ -1,0 +1,60 @@
+import boto3
+import json
+
+rds_client = boto3.client('rds-data')
+database_name = 'car_data_db'
+db_cluster_arn = 'your-rds-cluster-arn'
+db_credentials_secrets_store_arn = 'your-secret-store-arn'
+
+def execute_rds_query(sql, parameters=None):
+    response = rds_client.execute_statement(
+        resourceArn=db_cluster_arn,
+        secretArn=db_credentials_secrets_store_arn,
+        database=database_name,
+        sql=sql,
+        parameters=parameters or []
+    )
+    return response
+
+def lambda_handler(event, context):
+    try:
+        route_key = event['routeKey']
+        if route_key == 'POST /insert':
+            body = json.loads(event['body'])
+            sql = """
+                INSERT INTO car_data (car_model, year, price, auction_date)
+                VALUES (:car_model, :year, :price, :auction_date)
+            """
+            parameters = [
+                {'name': 'car_model', 'value': {'stringValue': body['car_model']}},
+                {'name': 'year', 'value': {'stringValue': body['year']}},
+                {'name': 'price', 'value': {'stringValue': body['price']}},
+                {'name': 'auction_date', 'value': {'stringValue': body['auction_date']}}
+            ]
+            execute_rds_query(sql, parameters)
+            return {
+                "statusCode": 200,
+                "body": json.dumps({"message": "Data inserted successfully"})
+            }
+
+        elif route_key == 'GET /get':
+            car_model = event['queryStringParameters']['car_model']
+            sql = "SELECT * FROM car_data WHERE car_model = :car_model"
+            parameters = [{'name': 'car_model', 'value': {'stringValue': car_model}}]
+            response = execute_rds_query(sql, parameters)
+            return {
+                "statusCode": 200,
+                "body": json.dumps(response['records'])
+            }
+
+        else:
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "Invalid route"})
+            }
+
+    except Exception as e:
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": str(e)})
+        }

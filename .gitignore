@@ -1,0 +1,14 @@
+# Ignore system packages and unnecessary files
+*.rpm
+
+# Ignore Python caches and virtual environments
+__pycache__/
+*.pyc
+*.pyo
+env/
+venv/
+
+# Ignore IDE files
+*.idea/
+*.vscode/
+

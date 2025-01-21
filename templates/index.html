@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Sales Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+        }
+        .input-group {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px 0 0 4px;
+            width: 60%;
+            max-width: 300px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            transition: background-color 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #fetchButton {
+            border-radius: 0 4px 4px 0;
+        }
+        .preset-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* Increased from 150px to 250px */
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .preset-button {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .preset-button:hover {
+            background-color: #2980b9;
+        }
+        .car-thumbnail {
+            width: 100%;
+            height: 300px; /* Increased from 100px to 300px (3x larger) */
+            object-fit: cover;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .car-name {
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.2em; /* Increased font size to match larger thumbnails */
+        }
+        #chartContainer {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-top: 20px;
+            height: 800px; /* Increased from default to 800px (4x taller) */
+        }
+        #loadingIndicator {
+            text-align: center;
+            margin-top: 20px;
+            font-style: italic;
+            color: #7f8c8d;
+        }
+        #errorMessage {
+            color: #e74c3c;
+            text-align: center;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Rest of the HTML remains the same -->
+    <h1>Car Sales Tracker</h1>
+    <p style="text-align: center;">Enter a car model or select a preset to fetch auction data:</p>
+    
+    <div class="input-group">
+        <input type="text" id="carModelInput" placeholder="Enter car model...">
+        <button id="fetchButton" onclick="fetchData()">Fetch Data</button>
+    </div>
+    
+<div class="preset-buttons">
+    <button class="preset-button" onclick="setCarModel('Ferrari F430')">
+        <img src="https://car-images-gallery.s3.us-east-2.amazonaws.com/ferrari_f430.jpg" alt="Ferrari F430" class="car-thumbnail">
+        <span class="car-name">Ferrari F430</span>
+    </button>
+    <button class="preset-button" onclick="setCarModel('Audi RS6')">
+        <img src="https://car-images-gallery.s3.us-east-2.amazonaws.com/audi_rs6.jpg" alt="Audi RS6" class="car-thumbnail">
+        <span class="car-name">Audi RS6</span>
+    </button>
+    <button class="preset-button" onclick="setCarModel('Lexus LFA')">
+        <img src="https://car-images-gallery.s3.us-east-2.amazonaws.com/lexus_lfa.jpg" alt="Lexus LFA" class="car-thumbnail">
+        <span class="car-name">Lexus LFA</span>
+    </button>
+    <button class="preset-button" onclick="setCarModel('Lamborghini Huracan')">
+        <img src="https://car-images-gallery.s3.us-east-2.amazonaws.com/lamborghini_huracan.jpg" alt="Lamborghini Huracan" class="car-thumbnail">
+        <span class="car-name">Lamborghini Huracan</span>
+    </button>
+    <button class="preset-button" onclick="setCarModel('Mercedes Maybach')">
+        <img src="https://car-images-gallery.s3.us-east-2.amazonaws.com/mercedes_maybach.jpg" alt="Mercedes Maybach" class="car-thumbnail">
+        <span class="car-name">Mercedes Maybach</span>
+    </button>
+</div>
+
+    <div id="loadingIndicator" style="display: none;">Fetching data, please wait...</div>
+    <div id="errorMessage"></div>
+
+    <div id="chartContainer">
+        <canvas id="salesChart"></canvas>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let chart;
+
+        function setCarModel(model) {
+            document.getElementById('carModelInput').value = model;
+            fetchData();
+        }
+
+        async function fetchData() {
+            const carModel = document.getElementById('carModelInput').value.trim();
+            if (!carModel) {
+                showError('Please enter a car model');
+                return;
+            }
+
+            showLoading(true);
+            clearError();
+
+            try {
+                const response = await fetch('/fetch-data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ car: carModel }),
+                });
+                const data = await response.json();
+
+                if (data.error) {
+                    showError('Error: ' + data.error);
+                } else if (data.length === 0) {
+                    showError('No data found for the specified car model');
+                } else {
+                    renderChart(data);
+                }
+            } catch (error) {
+                showError('Error: Failed to fetch sales data');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function renderChart(data) {
+            const ctx = document.getElementById('salesChart').getContext('2d');
+            
+            // Sort data by auction date
+            data.sort((a, b) => new Date(a.auction_date) - new Date(b.auction_date));
+
+            const labels = data.map(item => `${item.year} (${item.auction_date})`);
+            const prices = data.map(item => parseFloat(item.price.replace(/[$,]/g, '')));
+
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Price ($)',
+                        data: prices,
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#3498db',
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        fill: true,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
+                                }
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(context.parsed.y);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                },
+            });
+        }
+
+        function showLoading(isLoading) {
+            document.getElementById('loadingIndicator').style.display = isLoading ? 'block' : 'none';
+        }
+
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+        }
+
+        function clearError() {
+            document.getElementById('errorMessage').textContent = '';
+        }
+
+        // Add event listener for Enter key on input field
+        document.getElementById('carModelInput').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                fetchData();
+            }
+        });
+    </script>
+</body>
+</html>
